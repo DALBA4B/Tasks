@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Менеджер задач</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/colors.css">
+</head>
+<body>
+    <div class="container">
+        <div class="top-nav">
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="active">📋 Задачи</button>
+                <button class="nav-tab" data-tab="archive">📦 Архив</button>
+                <button class="btn-add-task" id="btnAddTask" title="Создать задачу">+</button>
+            </div>
+            <div class="sync-status offline" id="syncStatus">
+                <div class="sync-dot"></div>
+                <span id="syncText">Загрузка...</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tasks-section">
+                <div class="tasks-grid" id="tasksContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактирование задачи</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label>Название *</label>
+                    <input type="text" id="editTitle" required minlength="1">
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="editDescription"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Дедлайн</label>
+                    <input type="date" id="editDeadline">
+                </div>
+                <div class="form-group">
+                    <label>Приоритет</label>
+                    <select id="editPriority">
+                        <option value="">Без приоритета</option>
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Статус</label>
+                    <select id="editStatus">
+                        <option value="normal">Обычная</option>
+                        <option value="in_work">В работе</option>
+                        <option value="completed">Выполнена</option>
+                        <option value="archived">Архивная</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Дата создания</label>
+                    <input type="datetime-local" id="editCreatedAt">
+                </div>
+                <div class="form-group">
+                    <label>Дата начала работы</label>
+                    <input type="datetime-local" id="editInWorkAt">
+                </div>
+                <div class="form-group">
+                    <label>Дата выполнения</label>
+                    <input type="datetime-local" id="editCompletedAt">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-save">Сохранить</button>
+                    <button type="button" class="btn-cancel" id="cancelEdit">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div class="modal" id="createModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создать задачу</h3>
+                <button class="modal-close" id="createModalClose">&times;</button>
+            </div>
+            <form id="createForm">
+                <div class="form-group">
+                    <label>Название *</label>
+                    <input type="text" id="createTitle" required minlength="1" placeholder="Введите название задачи">
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="createDescription" placeholder="Добавьте подробности"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Дедлайн</label>
+                    <input type="date" id="createDeadline">
+                </div>
+                <div class="form-group">
+                    <label>Приоритет</label>
+                    <select id="createPriority">
+                        <option value="">Без приоритета</option>
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-save">Создать</button>
+                    <button type="button" class="btn-cancel" id="cancelCreate">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal" id="confirmDeleteModal">
+        <div class="modal-content modal-confirm">
+            <div class="modal-header">
+                <h3>Удалить задачу?</h3>
+            </div>
+            <p class="confirm-message">Задачу нельзя будет восстановить.
+
+            </p>
+            <div class="modal-actions">
+                <button class="btn-delete" id="confirmDeleteBtn">Удалить</button>
+                <button class="btn-cancel" id="cancelDeleteBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Complete Modal -->
+    <div class="modal" id="confirmCompleteModal">
+        <div class="modal-content modal-confirm">
+            <div class="modal-header">
+                <h3>Завершить задачу?</h3>
+            </div>
+            <p class="confirm-message">Задача будет перемещена в архив.</p>
+            <div class="modal-actions">
+                <button class="btn-complete" id="confirmCompleteBtn">Да, завершить</button>
+                <button class="btn-cancel" id="cancelCompleteBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebaseapp/js/app/1.10.7/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebaseapp/js/app/1.10.7/firebase-database.js"></script>
+
+    <!-- Application Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/autosize.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/task.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/handlers.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

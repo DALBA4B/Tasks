@@ -1,0 +1,25 @@
+/* ============= COLOR CLASSES ============= */
+
+.task-card.black { color: #000; }
+.task-card.black::before { background: #000; }
+
+.task-card.red { color: #ef4444; }
+.task-card.red::before { background: #ef4444; }
+
+.task-card.orange { color: #f97316; }
+.task-card.orange::before { background: #f97316; }
+
+.task-card.yellow { color: #eab308; }
+.task-card.yellow::before { background: #eab308; }
+
+.task-card.light-yellow { color: #fbbf24; }
+.task-card.light-yellow::before { background: #fbbf24; }
+
+.task-card.gray { color: #6b7280; }
+.task-card.gray::before { background: #6b7280; }
+
+.task-card.white { color: #9ca3af; }
+.task-card.white::before { background: #e5e7eb; }
+
+.task-card.purple { color: #a855f7; }
+.task-card.purple::before { background: #a855f7; }
