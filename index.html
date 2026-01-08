@@ -153,17 +153,25 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebaseapp/js/app/1.10.7/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebaseapp/js/app/1.10.7/firebase-database.js"></script>
+    <!-- Firebase SDK v9 Compat (поддерживает загрузку через script тег) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-    <!-- Application Scripts -->
+    <!-- Application Scripts (порядок важен!) -->
     <script src="js/config.js"></script>
     <script src="js/autosize.js"></script>
+    
+    <!-- Data Layer (IndexedDB + Sync) -->
     <script src="js/db.js"></script>
+    <script src="js/offline-queue.js"></script>
+    <script src="js/sync-engine.js"></script>
+    
+    <!-- UI Layer -->
     <script src="js/task.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/handlers.js"></script>
+    
+    <!-- Application -->
     <script src="js/app.js"></script>
 </body>
 </html>

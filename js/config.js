@@ -1,18 +1,18 @@
 /**
  * Firebase Configuration
- * Заполни эти значения своими учётными данными Firebase
- * Оставь пустыми для работы только с IndexedDB
  */
 
 const FIREBASE_CONFIG = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyB1ncLnLLPqdCrNxNATqu71x3FmXLjRTD8",
+    authDomain: "tasks-80dfd.firebaseapp.com",
+    projectId: "tasks-80dfd",
+    storageBucket: "tasks-80dfd.firebasestorage.app",
+    messagingSenderId: "188248202282",
+    appId: "1:188248202282:web:927e0f385fa365d5383753",
+    measurementId: "G-1QRBYSJEK9",
+    // Realtime Database URL (europe-west1 регион)
+    databaseURL: "https://tasks-80dfd-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
-// Флаг, если Firebase не настроен (все значения по умолчанию)
-const FIREBASE_ENABLED = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
+// Firebase включен
+const FIREBASE_ENABLED = true;

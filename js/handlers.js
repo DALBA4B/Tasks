@@ -222,8 +222,11 @@ const Handlers = (() => {
 
             case 'delete':
                 UI.openConfirmDeleteModal(async () => {
+                    console.log(`🗑️ Удаление задачи ${task.id}...`);
                     await DB.removeTask(task.id);
+                    console.log(`✓ Задача ${task.id} удалена из IndexedDB`);
                     await loadAndRenderTasks();
+                    console.log(`✓ Задачи перезагружены и переотрендерены`);
                     UI.closeConfirmDeleteModal();
                 });
                 break;
