@@ -79,6 +79,15 @@ const Task = (() => {
     }
 
     /**
+     * Выйти из работы (вернуться в нормальный статус)
+     */
+    function exitWork(task) {
+        task.status = 'normal';
+        task.in_work_at = null;
+        return updateTimestamp(task);
+    }
+
+    /**
      * Вычислить цвет задачи по дедлайну
      * Логика:
      * - Если задача возвращена из архива → Фиолетовый (приоритет)
@@ -159,6 +168,7 @@ const Task = (() => {
         create,
         updateTimestamp,
         startWork,
+        exitWork,
         complete,
         archive,
         restore,

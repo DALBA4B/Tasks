@@ -33,7 +33,6 @@ const Handlers = (() => {
         e.target.classList.add('active');
         UI.setCurrentTab(e.target.dataset.tab);
         UI.renderTasks();
-        reattachTaskActions();
     }
 
     /**
@@ -63,16 +62,25 @@ const Handlers = (() => {
     async function handleCreateTask(e) {
         e.preventDefault();
 
-        const title = document.getElementById('createTitle').value;
-        const description = document.getElementById('createDescription').value;
-        const deadline = document.getElementById('createDeadline').value;
-        const priority = document.getElementById('createPriority').value;
+        try {
+            const title = document.getElementById('createTitle').value;
+            const description = document.getElementById('createDescription').value;
+            const deadline = document.getElementById('createDeadline').value;
+            const priority = document.getElementById('createPriority').value;
 
-        const newTask = Task.create(title, description, deadline, priority);
-        await DB.saveTask(newTask);
+            const newTask = Task.create(title, description, deadline, priority);
+            console.log('[CREATE] ID:', newTask.id, 'Title:', newTask.title);
+            
+            await DB.saveTask(newTask);
+            console.log('[CREATE] Сохранена в DB');
 
-        UI.closeCreateModal();
-        await loadAndRenderTasks();
+            UI.closeCreateModal();
+            await loadAndRenderTasks();
+            console.log('[CREATE] Отрендерена');
+        } catch (error) {
+            console.error('Ошибка создания задачи:', error);
+            window.showAppNotification('❌ Ошибка: не удалось создать задачу', 'error');
+        }
     }
 
     /**
@@ -88,78 +96,70 @@ const Handlers = (() => {
     async function handleEditTask(e) {
         e.preventDefault();
 
-        const taskId = UI.getEditingTaskId();
-        if (!taskId) return;
+        try {
+            const taskId = UI.getEditingTaskId();
+            if (!taskId) return;
 
-        const tasks = UI.getAllTasks();
-        const task = tasks.find(t => t.id === taskId);
-        if (!task) return;
+            const tasks = UI.getAllTasks();
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
 
-        const newTitle = document.getElementById('editTitle').value.trim();
-        if (!newTitle) {
-            alert('Название обязательно');
-            return;
+            const newTitle = document.getElementById('editTitle').value.trim();
+            if (!newTitle) {
+                window.showAppNotification('⚠️ Название обязательно', 'info');
+                return;
+            }
+
+            task.title = newTitle;
+            task.description = document.getElementById('editDescription').value.trim();
+            task.deadline = document.getElementById('editDeadline').value || null;
+            task.priority = document.getElementById('editPriority').value || null;
+            task.status = document.getElementById('editStatus').value;
+            task.created_at = Task.fromDatetimeLocalFormat(document.getElementById('editCreatedAt').value) || task.created_at;
+            task.in_work_at = Task.fromDatetimeLocalFormat(document.getElementById('editInWorkAt').value);
+            task.completed_at = Task.fromDatetimeLocalFormat(document.getElementById('editCompletedAt').value);
+
+            Task.updateTimestamp(task);
+            await DB.saveTask(task);
+
+            UI.closeEditModal();
+            await loadAndRenderTasks();
+        } catch (error) {
+            console.error('Ошибка редактирования задачи:', error);
+            window.showAppNotification('❌ Ошибка: не удалось отредактировать задачу', 'error');
         }
-
-        task.title = newTitle;
-        task.description = document.getElementById('editDescription').value.trim();
-        task.deadline = document.getElementById('editDeadline').value || null;
-        task.priority = document.getElementById('editPriority').value || null;
-        task.status = document.getElementById('editStatus').value;
-        task.created_at = Task.fromDatetimeLocalFormat(document.getElementById('editCreatedAt').value) || task.created_at;
-        task.in_work_at = Task.fromDatetimeLocalFormat(document.getElementById('editInWorkAt').value);
-        task.completed_at = Task.fromDatetimeLocalFormat(document.getElementById('editCompletedAt').value);
-
-        Task.updateTimestamp(task);
-        await DB.saveTask(task);
-
-        UI.closeEditModal();
-        await loadAndRenderTasks();
     }
 
     /**
      * Инициализировать управление модальными окнами
      */
-    function attachModalBackdropListener(modalId, closeCallback) {
-        document.getElementById(modalId).addEventListener('click', (e) => {
-            if (e.target === document.getElementById(modalId)) {
-                closeCallback();
-            }
-        });
-    }
-
     function initModalControls() {
+        // Функция закрытия модального окна по клику на backdrop
+        const attachBackdropListener = (modalId, closeCallback) => {
+            document.getElementById(modalId).addEventListener('click', (e) => {
+                if (e.target === document.getElementById(modalId)) {
+                    closeCallback();
+                }
+            });
+        };
+
         // Edit modal
         document.getElementById('modalClose').addEventListener('click', UI.closeEditModal);
         document.getElementById('cancelEdit').addEventListener('click', UI.closeEditModal);
-        attachModalBackdropListener('editModal', UI.closeEditModal);
+        attachBackdropListener('editModal', UI.closeEditModal);
 
         // Create modal
         document.getElementById('createModalClose').addEventListener('click', UI.closeCreateModal);
         document.getElementById('cancelCreate').addEventListener('click', UI.closeCreateModal);
-        attachModalBackdropListener('createModal', UI.closeCreateModal);
+        attachBackdropListener('createModal', UI.closeCreateModal);
 
         // Confirm delete modal
-        document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
-            const callback = UI.getDeleteCallback();
-            if (callback) {
-                await callback();
-            }
-        });
-
         document.getElementById('cancelDeleteBtn').addEventListener('click', UI.closeConfirmDeleteModal);
-        attachModalBackdropListener('confirmDeleteModal', UI.closeConfirmDeleteModal);
+        attachBackdropListener('confirmDeleteModal', UI.closeConfirmDeleteModal);
 
         // Confirm complete modal
-        document.getElementById('confirmCompleteBtn').addEventListener('click', async () => {
-            const callback = UI.getCompleteCallback();
-            if (callback) {
-                await callback();
-            }
-        });
-
         document.getElementById('cancelCompleteBtn').addEventListener('click', UI.closeConfirmCompleteModal);
-        attachModalBackdropListener('confirmCompleteModal', UI.closeConfirmCompleteModal);
+        attachBackdropListener('confirmCompleteModal', UI.closeConfirmCompleteModal);
     }
 
     /**
@@ -169,13 +169,7 @@ const Handlers = (() => {
         document.addEventListener('click', handleTaskAction);
     }
 
-    /**
-     * Переприсоединить обработчики действий (после рендеринга)
-     */
-    function reattachTaskActions() {
-        // Обработчики уже привязаны через document.addEventListener
-        // Но если нужна оптимизация, можно добавить специальную логику
-    }
+
 
     /**
      * Обработчик действий над задачей
@@ -193,6 +187,12 @@ const Handlers = (() => {
         switch (action) {
             case 'work':
                 Task.startWork(task);
+                await DB.saveTask(task);
+                await loadAndRenderTasks();
+                break;
+
+            case 'exit-work':
+                Task.exitWork(task);
                 await DB.saveTask(task);
                 await loadAndRenderTasks();
                 break;
@@ -222,12 +222,14 @@ const Handlers = (() => {
 
             case 'delete':
                 UI.openConfirmDeleteModal(async () => {
-                    console.log(`🗑️ Удаление задачи ${task.id}...`);
-                    await DB.removeTask(task.id);
-                    console.log(`✓ Задача ${task.id} удалена из IndexedDB`);
-                    await loadAndRenderTasks();
-                    console.log(`✓ Задачи перезагружены и переотрендерены`);
-                    UI.closeConfirmDeleteModal();
+                    try {
+                        await DB.removeTask(task.id);
+                        await loadAndRenderTasks();
+                        UI.closeConfirmDeleteModal();
+                    } catch (error) {
+                        console.error('Ошибка при удалении задачи:', error);
+                        window.showAppNotification('❌ Ошибка: не удалось удалить задачу', 'error');
+                    }
                 });
                 break;
         }

@@ -7,12 +7,6 @@ const UI = (() => {
     let currentTab = 'active';
     let allTasks = [];
     let editingTaskId = null;
-    
-    // Callback storage вместо window объекта
-    let callbackStorage = {
-        delete: null,
-        complete: null
-    };
 
     /**
      * Установить текущую вкладку
@@ -104,7 +98,11 @@ const UI = (() => {
             `;
         } else {
             let statusButtons = '';
-            if (task.status !== 'in_work') {
+            // Если была в работе (in_work_at установлена) — показать кнопку выхода
+            if (task.in_work_at) {
+                statusButtons += `<button class="btn-work" data-id="${task.id}" data-action="exit-work">Из работы</button>`;
+            } else if (task.status !== 'completed') {
+                // Иначе если не завершена — показать кнопку входа в работу
                 statusButtons += `<button class="btn-work" data-id="${task.id}" data-action="work">В работу</button>`;
             }
             if (task.status !== 'completed') {
@@ -123,7 +121,7 @@ const UI = (() => {
                     <div class="task-title">${escapeHtml(task.title)}</div>
                     ${priority ? `<div class="task-badge ${priority.class}">${priority.text}</div>` : ''}
                 </div>
-                ${task.description ? `<div class="task-description"></div>` : ''}
+                ${task.description ? `<div class="task-description">${escapeHtml(task.description).replace(/\n/g, '<br>')}</div>` : ''}
                 <div class="task-meta">
                     ${task.deadline ? `<div class="task-meta-item">📅 ${Task.formatDate(task.deadline)}</div>` : ''}
                     <div class="task-meta-item">➕ ${Task.formatDate(task.created_at)}</div>
@@ -154,9 +152,14 @@ const UI = (() => {
      */
     function renderTasks() {
         const container = document.getElementById('tasksContainer');
-        if (!container) return;
+        if (!container) {
+            console.warn('tasksContainer не найден!');
+            return;
+        }
 
         const filteredTasks = getFilteredTasks();
+        console.log(`[RENDER] Всего в UI: ${allTasks.length}, Фильтр "${currentTab}": ${filteredTasks.length}`);
+        
         const sortedTasks = sortTasks([...filteredTasks]);
 
         if (sortedTasks.length === 0) {
@@ -164,15 +167,12 @@ const UI = (() => {
             return;
         }
 
-        container.innerHTML = sortedTasks.map(task => renderTaskCard(task)).join('');
+        const newHTML = sortedTasks.map(task => renderTaskCard(task)).join('');
+        container.innerHTML = newHTML;
+        console.log(`[RENDER] Отрендерено задач: ${sortedTasks.length}`);
         
-        // Заполнить описания с сохранением переносов строк
-        sortedTasks.forEach(task => {
-            const cardElement = container.querySelector(`[data-task-id="${task.id}"]`);
-            if (cardElement && task.description) {
-                fillTaskDescription(cardElement, task.description);
-            }
-        });
+        // Инициализировать autosize для новых textarea
+        setTimeout(() => TextareaAutosize.init(), 0);
     }
 
     /**
@@ -240,7 +240,11 @@ const UI = (() => {
      * Открыть модальное окно подтверждения удаления
      */
     function openConfirmDeleteModal(callback) {
-        callbackStorage.delete = callback;
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const savedHandler = () => callback().then(() => {
+            closeConfirmDeleteModal();
+        });
+        confirmDeleteBtn.onclick = savedHandler;
         document.getElementById('confirmDeleteModal').classList.add('active');
     }
 
@@ -249,21 +253,17 @@ const UI = (() => {
      */
     function closeConfirmDeleteModal() {
         document.getElementById('confirmDeleteModal').classList.remove('active');
-        callbackStorage.delete = null;
-    }
-
-    /**
-     * Получить callback удаления
-     */
-    function getDeleteCallback() {
-        return callbackStorage.delete;
     }
 
     /**
      * Открыть модальное окно подтверждения завершения
      */
     function openConfirmCompleteModal(callback) {
-        callbackStorage.complete = callback;
+        const confirmCompleteBtn = document.getElementById('confirmCompleteBtn');
+        const savedHandler = () => callback().then(() => {
+            closeConfirmCompleteModal();
+        });
+        confirmCompleteBtn.onclick = savedHandler;
         document.getElementById('confirmCompleteModal').classList.add('active');
     }
 
@@ -272,20 +272,11 @@ const UI = (() => {
      */
     function closeConfirmCompleteModal() {
         document.getElementById('confirmCompleteModal').classList.remove('active');
-        callbackStorage.complete = null;
-    }
-
-    /**
-     * Получить callback завершения
-     */
-    function getCompleteCallback() {
-        return callbackStorage.complete;
     }
 
     // Публичное API
     return {
         setCurrentTab,
-        getCurrentTab,
         setEditingTaskId,
         getEditingTaskId,
         setAllTasks,
@@ -299,9 +290,7 @@ const UI = (() => {
         closeCreateModal,
         openConfirmDeleteModal,
         closeConfirmDeleteModal,
-        getDeleteCallback,
         openConfirmCompleteModal,
-        closeConfirmCompleteModal,
-        getCompleteCallback
+        closeConfirmCompleteModal
     };
 })();

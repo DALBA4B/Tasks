@@ -61,7 +61,7 @@ const SyncEngine = (() => {
                 });
             }
 
-            console.log('🔄 Sync Engine инициализирован');
+            // Sync Engine инициализирован
         } catch (error) {
             console.error('Ошибка инициализации Sync Engine:', error);
             emitEvent(EVENTS.SYNC_ERROR, { message: error.message });
@@ -93,13 +93,13 @@ const SyncEngine = (() => {
 
             // Проверить, не инициализирована ли уже Firebase
             if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
-                console.log('📡 Firebase уже инициализирована');
+                // Firebase уже инициализирована
                 firebaseDb = window.firebase.database();
             } else {
                 // Firebase v9 API
                 window.firebase.initializeApp(FIREBASE_CONFIG);
                 firebaseDb = window.firebase.database();
-                console.log('📡 Firebase инициализирована (v9 API)');
+                // Firebase инициализирована (v9 API)
             }
 
             // Слушать изменения задач на облаке
@@ -109,7 +109,7 @@ const SyncEngine = (() => {
             if (firebaseDb) {
                 firebaseDb.ref('.info/connected').on('value', (snapshot) => {
                     if (snapshot.val() === true) {
-                        console.log('✅ Firebase подключен к серверу');
+                        // Firebase подключен к серверу
                     } else {
                         console.warn('⚠️ Firebase отключен');
                     }
@@ -124,18 +124,21 @@ const SyncEngine = (() => {
     /**
      * Установить слушатель на изменения в облаке
      * Когда облако обновляется, мы загружаем свежие данные
+     * 📌 Слушатель только для ТЕКУЩЕГО хранилища
      */
     function setupCloudListener() {
         if (!firebaseDb) return;
 
-        firebaseDb.ref('tasks').on('value', async (snapshot) => {
+        const currentStorage = StorageManager.getCurrent();
+        const firebasePath = `tasks/${currentStorage}`;
+        
+        firebaseDb.ref(firebasePath).on('value', async (snapshot) => {
             const cloudTasks = snapshot.val() || {};
             const tasks = Object.values(cloudTasks);
-            console.log(`📡 Слушатель сработал: получено ${tasks.length} задач с облака`);
-            console.log(`   locallyDeletedTaskIds содержит: ${locallyDeletedTaskIds.size} задач`);
+            console.log(`[CloudListener] ${firebasePath}: ${tasks.length} задач`);
 
             // Объединить облачные данные с локальными через LWW
-            await mergeCloudTasks(tasks);
+            await mergeCloudTasks(tasks, StorageManager.getCurrent());
 
             // Уведомить UI о синхронизации
             emitEvent(EVENTS.TASKS_SYNCED, { tasks });
@@ -150,70 +153,73 @@ const SyncEngine = (() => {
      * LWW: смотрим на updated_at, у кого метка позже — берём того
      * 
      * @param {Array} cloudTasks - задачи пришедшие с облака
+     * @param {string} sourceStorage - из какого хранилища загружены данные
      */
-    async function mergeCloudTasks(cloudTasks) {
+    async function mergeCloudTasks(cloudTasks, sourceStorage) {
+        // 📌 Проверка: загружаем данные только для СВОЕГО хранилища
+        const currentStorage = StorageManager.getCurrent();
+        if (sourceStorage !== currentStorage) {
+            console.warn(`⚠️ Попытка загрузить данные из ${sourceStorage} в ${currentStorage}, пропускаем`);
+            return;
+        }
+
         const localTasks = await DB.getAllTasks();
-        console.log(`📊 Мерж данных: ${localTasks.length} локальных, ${cloudTasks.length} с облака`);
-        
-        if (localTasks.length > 0) {
-            console.log(`   Локальные: ${localTasks.map(t => t.id).join(', ')}`);
-        }
-        if (cloudTasks.length > 0) {
-            console.log(`   С облака: ${cloudTasks.map(t => t.id).join(', ')}`);
-        }
 
         // Построить карту локальных задач по ID для быстрого поиска
         const localMap = {};
         localTasks.forEach(task => {
             localMap[task.id] = task;
         });
+        
+        // Сравнение локальных и облачных задач
 
         // Построить набор ID задач с облака для быстрого поиска
         const cloudTaskIds = new Set(cloudTasks.map(t => t.id));
 
         // Для каждой облачной задачи: если её версия свежее локальной — обновить
         for (const cloudTask of cloudTasks) {
+            // Пропустить если нет ID
+            if (!cloudTask?.id) continue;
+            
             const localTask = localMap[cloudTask.id];
             
             // НЕ восстанавливать локально удаленные задачи (ждем синхронизации DELETE)
             if (locallyDeletedTaskIds.has(cloudTask.id)) {
-                console.log(`⏭️ Пропущена удаленная локально задача: ${cloudTask.id}`);
                 continue;
             }
 
             if (!localTask) {
-                // Новая задача с облака — добавить локально
-                console.log(`➕ Добавлена новая задача с облака: ${cloudTask.id}`);
                 await DB.addTask(cloudTask);
             } else if (new Date(cloudTask.updated_at) > new Date(localTask.updated_at)) {
                 // Облачная версия свежее — обновить локально
-                console.log(`🔄 Обновлена задача с облака: ${cloudTask.id}`);
                 await DB.addTask(cloudTask);
             }
             // Иначе локальная версия свежее, оставляем её
         }
 
         // Удалить локальные задачи которые удалены на облаке
+        // ВАЖНО: не удалять задачи которые еще в очереди синхронизации
         let deletedCount = 0;
         for (const localTask of localTasks) {
             if (!cloudTaskIds.has(localTask.id)) {
-                // Задача удалена на облаке но существует локально
-                console.log(`🗑️ Удалена локальная задача (удалена на облаке): ${localTask.id}`);
-                await DB.deleteTask(localTask.id);
-                deletedCount++;
+                // Пропустить если задача еще в очереди синхронизации
+                // (она еще не загружена на облако)
+                const operations = await OfflineQueue.getAllOperations();
+                const isInQueue = operations?.some(op => op.taskId === localTask.id);
+                
+                if (!isInQueue) {
+                    await DB.deleteTask(localTask.id);
+                    deletedCount++;
+                }
             }
         }
         
         if (deletedCount > 0) {
-            console.log(`✓ Удалено ${deletedCount} локальных задач которые были удалены на облаке`);
+            // Удалены локальные задачи
         }
         
         // Проверка: все ли локальные задачи теперь синхронны с облаком
         const finalLocalTasks = await DB.getAllTasks();
-        console.log(`✅ Финальное состояние: ${finalLocalTasks.length} локальных задач`);
-        if (finalLocalTasks.length > 0) {
-            console.log(`   Остались: ${finalLocalTasks.map(t => t.id).join(', ')}`);
-        }
     }
 
     /**
@@ -226,12 +232,8 @@ const SyncEngine = (() => {
      */
     async function queueOperation(type, taskId, task = null) {
         try {
-            console.log(`📋 Добавление в очередь: ${type.toUpperCase()} ${taskId}`);
-            
-            // Если это DELETE операция, отметить что задача была локально удалена
             if (type === 'delete') {
                 locallyDeletedTaskIds.add(taskId);
-                console.log(`🗑️ Задача ${taskId} отмечена как локально удаленная`);
             }
             
             // Добавить в очередь
@@ -242,14 +244,11 @@ const SyncEngine = (() => {
                 timestamp: new Date().toISOString()
             });
 
-            console.log(`✓ Операция добавлена в очередь`);
-
             // Если онлайн — сразу попробовать синхронизировать
             if (isOnline) {
-                console.log(`🔄 Попытка синхронизировать очередь...`);
                 processQueue();
             } else {
-                console.log(`📴 Нет интернета, очередь будет обработана при подключении`);
+                // Нет интернета, очередь будет обработана при подключении
             }
         } catch (error) {
             console.error('Ошибка добавления в очередь:', error);
@@ -264,7 +263,7 @@ const SyncEngine = (() => {
     async function processQueue() {
         // Проверить готовность
         if (!isOnline) {
-            console.log('📴 Нет интернета, очередь будет обработана позже');
+            return;
             return;
         }
 
@@ -273,7 +272,6 @@ const SyncEngine = (() => {
         }
 
         if (!firebaseDb) {
-            console.log('💾 Firebase недоступен. Приложение работает в режиме offline-only. Данные хранятся локально.');
             return;
         }
 
@@ -289,7 +287,7 @@ const SyncEngine = (() => {
                 return;
             }
 
-            console.log(`📤 Синхронизация ${operations.length} операций с Firebase...`);
+            
 
             // Обработать операции по порядку
             for (const operation of operations) {
@@ -302,21 +300,14 @@ const SyncEngine = (() => {
 
                     // Удалить операцию из очереди после успеха
                     await OfflineQueue.removeOperation(operation.id);
-                    console.log(`✓ Операция ${operation.id} (${operation.type}) удалена из очереди`);
                 } catch (error) {
-                    // Операция не прошла, но не удаляем её из очереди
-                    // Она будет обработана при следующей синхронизации
-                    console.error(`❌ Ошибка обработки операции ${operation.id} (${operation.type}):`, error);
+                    // Операция не прошла, она останется в очереди для повторной попытки
+                    console.error('Ошибка обработки операции', operation.id, operation.type, error);
                 }
             }
 
             isSyncing = false;
             const queueCount = await OfflineQueue.getCount();
-            if (queueCount === 0) {
-                console.log('✅ Все операции синхронизированы');
-            } else {
-                console.log(`⏳ В очереди осталось ${queueCount} операций`);
-            }
             emitEvent(EVENTS.SYNC_COMPLETED, { count: queueCount });
         } catch (error) {
             isSyncing = false;
@@ -327,6 +318,7 @@ const SyncEngine = (() => {
 
     /**
      * Отправить задачу в облако
+     * 📌 Каждое хранилище синхронизируется в отдельную папку Firebase
      */
     async function syncTaskToCloud(task) {
         // Проверить, готов ли Firebase
@@ -335,14 +327,16 @@ const SyncEngine = (() => {
             return; // Не блокируем, просто пропускаем
         }
 
+        const currentStorage = StorageManager.getCurrent();
+        const firebasePath = `tasks/${currentStorage}/${task.id}`; // 📌 Отдельная папка!
+        
         return new Promise((resolve, reject) => {
             try {
-                firebaseDb.ref(`tasks/${task.id}`).set(task, (error) => {
+                firebaseDb.ref(firebasePath).set(task, (error) => {
                     if (error) {
-                        console.error(`❌ Ошибка синхронизации задачи ${task.id}:`, error);
+                        console.error('Ошибка синхронизации задачи', task.id, error);
                         reject(error);
                     } else {
-                        console.log(`✓ Задача ${task.id} синхронизирована`);
                         resolve();
                     }
                 });
@@ -355,6 +349,7 @@ const SyncEngine = (() => {
 
     /**
      * Удалить задачу из облака
+     * 📌 Удаляет из отдельной папки ТЕКУЩЕГО хранилища
      */
     async function deleteTaskFromCloud(taskId) {
         // Проверить, готов ли Firebase
@@ -363,22 +358,23 @@ const SyncEngine = (() => {
             return; // Не блокируем, просто пропускаем
         }
 
+        const currentStorage = StorageManager.getCurrent();
+        const firebasePath = `tasks/${currentStorage}/${taskId}`; // 📌 Отдельная папка!
+        
         return new Promise((resolve, reject) => {
             try {
-                firebaseDb.ref(`tasks/${taskId}`).remove((error) => {
+                firebaseDb.ref(firebasePath).remove((error) => {
                     if (error) {
-                        console.error(`❌ Ошибка удаления задачи ${taskId}:`, error);
+                        console.error('Ошибка удаления задачи из облака', taskId, error);
                         reject(error);
                     } else {
-                        console.log(`✓ Задача ${taskId} удалена с облака`);
                         // Убрать из отслеживания локально удаленных (DELETE синхронизирована)
                         locallyDeletedTaskIds.delete(taskId);
-                        console.log(`✓ Задача ${taskId} больше не отмечена как локально удаленная`);
                         resolve();
                     }
                 });
             } catch (error) {
-                console.error(`❌ Исключение при удалении ${taskId}:`, error);
+                console.error('Исключение при удалении из облака', taskId, error);
                 reject(error);
             }
         });
@@ -391,20 +387,26 @@ const SyncEngine = (() => {
     /**
      * Синхронизация с облаком Firebase
      * С timeout 10 секунд - если Firebase не отвечает, отменяем операцию
+     * 📌 Синхронизирует только ТЕКУЩЕЕ хранилище со своей папкой в Firebase
      */
     async function syncWithCloud() {
-        if (!firebaseDb || !isOnline) {
+        if (!firebaseDb || !isOnline || isSyncing) {
             return;
         }
+
+        const currentStorage = StorageManager.getCurrent();
+        const firebasePath = `tasks/${currentStorage}`; // 📌 Отдельная папка для каждого хранилища!
+        
+        // Синхронизация текущего хранилища с Firebase
 
         // Добавить timeout 10 секунд
         return Promise.race([
             (async () => {
                 try {
-                    const snapshot = await firebaseDb.ref('tasks').once('value');
-                    const cloudTasks = Object.values(snapshot.val() || {});
-                    console.log(`✅ Загружено ${cloudTasks.length} задач с облака`);
-                    await mergeCloudTasks(cloudTasks);
+                    const snapshot = await firebaseDb.ref(firebasePath).once('value');
+                    const cloudTasksObj = snapshot.val() || {};
+                    const cloudTasks = Object.values(cloudTasksObj);
+                    await mergeCloudTasks(cloudTasks, currentStorage);
                     emitEvent(EVENTS.TASKS_SYNCED, { tasks: cloudTasks });
                 } catch (error) {
                     // Не выбрасываем ошибку - приложение работает локально
@@ -416,9 +418,7 @@ const SyncEngine = (() => {
                 setTimeout(() => reject(new Error('Timeout')), 10000)
             )
         ]).catch(error => {
-            if (error.message === 'Timeout') {
-                console.log('💾 Firebase недоступен, приложение работает локально');
-            }
+            // timeout or other errors ignored - app continues offline
         });
     }
 
@@ -428,16 +428,15 @@ const SyncEngine = (() => {
     function initNetworkListeners() {
         window.addEventListener('online', () => {
             isOnline = true;
-            console.log('🌐 Интернет подключён');
             emitEvent(EVENTS.STATUS_CHANGED, { online: true });
-
-            // Попробовать обработать очередь
-            processQueue();
+            processQueue().catch(error => {
+                console.error('Ошибка при обработке очереди:', error);
+                emitEvent(EVENTS.SYNC_ERROR, { message: error.message });
+            });
         });
 
         window.addEventListener('offline', () => {
             isOnline = false;
-            console.log('📴 Интернет отключён');
             emitEvent(EVENTS.STATUS_CHANGED, { online: false });
         });
 

@@ -13,6 +13,5 @@ const FIREBASE_CONFIG = {
     // Realtime Database URL (europe-west1 регион)
     databaseURL: "https://tasks-80dfd-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 // Firebase включен
 const FIREBASE_ENABLED = true;

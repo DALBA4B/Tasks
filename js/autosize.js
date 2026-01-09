@@ -4,6 +4,9 @@
  */
 
 const TextareaAutosize = (() => {
+    let mutationObserver = null;
+    let processedTextareas = new Set();
+
     /**
      * Инициализировать автоматическое расширение
      */
@@ -21,6 +24,10 @@ const TextareaAutosize = (() => {
      * Привязать автоизменение размера к конкретному textarea
      */
     function attachAutosize(textarea) {
+        // Не привязывать дважды
+        if (processedTextareas.has(textarea)) return;
+        processedTextareas.add(textarea);
+        
         // Убрать старые обработчики если были
         textarea.removeEventListener('input', handleInput);
         textarea.addEventListener('input', handleInput);
@@ -50,7 +57,7 @@ const TextareaAutosize = (() => {
      * Наблюдать за добавлением новых textarea (при открытии модала)
      */
     function observeNewTextareas() {
-        const observer = new MutationObserver((mutations) => {
+        mutationObserver = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.addedNodes.length) {
                     mutation.addedNodes.forEach((node) => {
@@ -65,7 +72,7 @@ const TextareaAutosize = (() => {
             });
         });
 
-        observer.observe(document.body, {
+        mutationObserver.observe(document.body, {
             childList: true,
             subtree: true
         });

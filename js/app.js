@@ -12,12 +12,71 @@
 
 const App = (() => {
     /**
+     * Показать уведомление (toast) от приложения
+     * @param {string} message - текст сообщения
+     * @param {string} type - тип: 'success', 'error', 'info'
+     */
+    window.showAppNotification = function(message, type = 'info') {
+        // Удалить старое уведомление если есть
+        const existing = document.getElementById('appNotification');
+        if (existing) existing.remove();
+
+        // Создать новое уведомление
+        const notification = document.createElement('div');
+        notification.id = 'appNotification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 400px;
+        `;
+        notification.textContent = message;
+
+        // Добавить CSS анимацию если её нет
+        if (!document.getElementById('notificationStyles')) {
+            const style = document.createElement('style');
+            style.id = 'notificationStyles';
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(400px); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(400px); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(notification);
+
+        // Автоматически удалить через 3 секунды
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    };
+
+    /**
      * Инициализация приложения
      */
     async function init() {
-        console.log('🚀 Инициализация приложения...');
+        
 
         try {
+            // 0. Инициализировать выбор хранилища (пока не выбрано - показать модаль)
+            await StorageManager.init();
+
             // 1. Инициализировать автоматическое расширение textarea
             TextareaAutosize.init();
 
@@ -34,18 +93,19 @@ const App = (() => {
             // 5. Инициализировать обработчики событий UI
             Handlers.init();
 
-            // 6. Отрендерить начальное состояние
+            // 6. Инициализировать обработчики настроек
+            setupSettingsHandlers();
+
+            // 7. Отрендерить начальное состояние
             UI.renderTasks();
 
-            // 7. Слушать события синхронизации от SyncEngine
+            // 8. Слушать события синхронизации от SyncEngine
             setupSyncListeners();
 
-            // 8. Показать статус
+            // 9. Показать статус
             updateSyncStatus(navigator.onLine);
             
-            console.log('✅ Приложение готово к работе');
-            console.log('💾 Все данные сохраняются локально в IndexedDB');
-            console.log('📤 Если Firebase доступен, данные автоматически синхронизируются');
+            
         } catch (error) {
             console.error('❌ Ошибка инициализации:', error);
         }
@@ -62,13 +122,10 @@ const App = (() => {
      * - sync:tasks-synced - пришли новые данные с облака
      */
     function setupSyncListeners() {
-        // Когда с облака пришли новые данные — обновить UI
-        window.addEventListener(SyncEngine.EVENTS.TASKS_SYNCED, async (event) => {
-            console.log('📡 Задачи синхронизированы с облаком');
-            const tasks = await DB.getAllTasks();
-            UI.setAllTasks(tasks);
-            UI.renderTasks();
-        });
+        // Игнорируем TASKS_SYNCED для UI - используем только для уведомлений
+        // (облачные данные могут быть неполными)
+        
+        // Вместо этого UI обновляется явно в handlers.js после создания/редактирования
 
         // Когда изменилось состояние сети — обновить статус
         window.addEventListener(SyncEngine.EVENTS.STATUS_CHANGED, (event) => {
@@ -92,6 +149,103 @@ const App = (() => {
             const { message } = event.detail;
             console.error('❌ Ошибка синхронизации:', message);
             // Можно показать пользователю уведомление, но это не критично
+        });
+    }
+
+    /**
+     * Показать уведомление (toast) от приложения
+     * @param {string} message - текст сообщения
+     * @param {string} type - тип: 'success', 'error', 'info'
+     */
+    function showNotification(message, type = 'info') {
+        window.showAppNotification(message, type);
+    }
+
+    /**
+     * Инициализировать обработчики настроек и хранилищ
+     */
+    function setupSettingsHandlers() {
+        const btnSettings = document.getElementById('btnSettings');
+        const settingsModal = document.getElementById('settingsModal');
+        const settingsModalClose = document.getElementById('settingsModalClose');
+        const currentStateDisplay = document.getElementById('currentStateDisplay');
+        const storageToggle = document.getElementById('storageToggle');
+
+        // Обновить состояние отображения
+        function updateStorageDisplay() {
+            const mergeState = StorageManager.getMergeState();
+            if (mergeState === StorageManager.MERGE_STATE_MERGED) {
+                currentStateDisplay.textContent = '🔗 Объединено';
+                storageToggle.checked = true;
+            } else {
+                currentStateDisplay.textContent = '📂 Разделено';
+                storageToggle.checked = false;
+            }
+        }
+
+        // Показать модальное окно настроек
+        btnSettings.addEventListener('click', () => {
+            updateStorageDisplay();
+            settingsModal.classList.add('active');
+        });
+
+        // Закрыть модальное окно
+        settingsModalClose.addEventListener('click', () => {
+            settingsModal.classList.remove('active');
+        });
+
+        // Обработчик ползунка
+        storageToggle.addEventListener('change', async () => {
+            const isMerged = storageToggle.checked;
+            const currentState = StorageManager.getMergeState();
+
+            try {
+                if (isMerged && currentState === StorageManager.MERGE_STATE_SPLIT) {
+                    // Переключиться на объединение
+                    const msg = '⚠️ Это объединит все задачи из Хранилища 2 в Хранилище 1.\n\nПосле этого будет только одно хранилище. Продолжить?';
+                    if (!confirm(msg)) {
+                        storageToggle.checked = false;
+                        return;
+                    }
+
+                    storageToggle.disabled = true;
+                    showNotification('⏳ Объединение хранилищ...', 'info');
+
+                    await StorageManager.mergeStorages();
+                    
+                    showNotification('✅ Хранилища объединены!', 'success');
+                    settingsModal.classList.remove('active');
+                    setTimeout(() => window.location.reload(), 800);
+                } else if (!isMerged && currentState === StorageManager.MERGE_STATE_MERGED) {
+                    // Переключиться на разделение
+                    const msg = '⚠️ Это разделит хранилище на два отдельных.\n\nВсе текущие задачи останутся в Хранилище 1, Хранилище 2 будет пустым. Продолжить?';
+                    if (!confirm(msg)) {
+                        storageToggle.checked = true;
+                        return;
+                    }
+
+                    storageToggle.disabled = true;
+                    showNotification('⏳ Разделение хранилищ...', 'info');
+
+                    await StorageManager.splitStorages();
+                    
+                    showNotification('✅ Хранилище разделено!', 'success');
+                    settingsModal.classList.remove('active');
+                    setTimeout(() => window.location.reload(), 800);
+                }
+            } catch (error) {
+                console.error('❌ Ошибка:', error);
+                showNotification('❌ Ошибка: ' + error.message, 'error');
+                storageToggle.disabled = false;
+                updateStorageDisplay();
+            }
+        });
+
+        // Закрыть по клику на backdrop
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
+            }
         });
     }
 
@@ -125,17 +279,9 @@ const App = (() => {
         }
     }
 
-    /**
-     * Загрузить и отрендерить задачи (используется из Handlers)
-     */
-    async function loadAndRender() {
-        return Handlers.loadAndRenderTasks();
-    }
-
     // Публичное API
     return {
-        init,
-        loadAndRender
+        init
     };
 })();
 

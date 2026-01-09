@@ -32,7 +32,7 @@ const OfflineQueue = (() => {
                     return;
                 }
                 
-                console.log('✓ Offline Queue готова к использованию');
+                // Offline Queue готова к использованию
                 resolve();
             };
 
@@ -112,27 +112,6 @@ const OfflineQueue = (() => {
     }
 
     /**
-     * Очистить всю очередь (при успешной синхронизации или очистке)
-     */
-    async function clear() {
-        if (!db) return;
-
-        return new Promise((resolve, reject) => {
-            try {
-                const transaction = db.transaction([QUEUE_STORE], 'readwrite');
-                const store = transaction.objectStore(QUEUE_STORE);
-                const request = store.clear();
-
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-                transaction.onerror = () => reject(transaction.error);
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    /**
      * Получить количество операций в очереди
      */
     async function getCount() {
@@ -146,7 +125,6 @@ const OfflineQueue = (() => {
         addOperation,
         getAllOperations,
         removeOperation,
-        clear,
         getCount
     };
 })();

@@ -1,24 +1,30 @@
 /**
  * Database Module
  * Управляет локальным хранилищем (IndexedDB)
- * Синхронизация с облаком делегирована SyncEngine * 
+ * Поддерживает два изолированных хранилища (storage1, storage2)
+ * Синхронизация с облаком делегирована SyncEngine
+ * 
  * Архитектура: offline-first
  * 1. Все записи сохраняются в IndexedDB немедленно
  * 2. Операции добавляются в очередь синхронизации (SyncEngine их обработает)
- * 3. UI всегда видит актуальные локальные данные */
+ * 3. UI всегда видит актуальные локальные данные
+ */
 
 const DB = (() => {
     const DB_NAME = 'TaskManager';
-    const DB_VERSION = 3;  // Увеличена версия чтобы пересоздать stores с обоими хранилищами
-    const STORE_NAME = 'tasks';
+    const DB_VERSION = 4;  // Увеличена для поддержки двух хранилищ
     
     let db = null;
+    let currentStoreName = null;  // Будет установлено StorageManager'ом
 
     /**
      * Инициализация IndexedDB
-     * Создаёт хранилища для задач и очереди синхронизации
+     * Создаёт хранилища для двух изолированных наборов задач
      */
     async function initIndexedDB() {
+        // Получить текущее хранилище от StorageManager
+        currentStoreName = `tasks_${StorageManager.getCurrent()}`;
+        
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -26,23 +32,28 @@ const DB = (() => {
 
             request.onsuccess = () => {
                 db = request.result;
-                console.log('💾 IndexedDB инициализирована');
+                // Если режим split - убедиться что storage2 пустой
+                if (StorageManager.getMergeState() === StorageManager.MERGE_STATE_SPLIT) {
+                    const transaction = db.transaction(['tasks_storage2'], 'readwrite');
+                    const store = transaction.objectStore('tasks_storage2');
+                    const clearRequest = store.clear();
+                    clearRequest.onerror = () => console.warn('Не удалось очистить storage2');
+                }
                 resolve();
             };
 
             request.onupgradeneeded = (event) => {
                 const database = event.target.result;
                 
-                // Создать store для задач если его нет
-                if (!database.objectStoreNames.contains(STORE_NAME)) {
-                    database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                    console.log('📦 Store "tasks" создан');
+                // Создать таблицы для обоих хранилищ если их нет
+                if (!database.objectStoreNames.contains('tasks_storage1')) {
+                    database.createObjectStore('tasks_storage1', { keyPath: 'id' });
                 }
-                
-                // Создать store для очереди синхронизации если его нет
+                if (!database.objectStoreNames.contains('tasks_storage2')) {
+                    database.createObjectStore('tasks_storage2', { keyPath: 'id' });
+                }
                 if (!database.objectStoreNames.contains('syncQueue')) {
                     database.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
-                    console.log('📦 Store "syncQueue" создан');
                 }
             };
         });
@@ -58,12 +69,16 @@ const DB = (() => {
         if (!db) return [];
 
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
+            const transaction = db.transaction([currentStoreName], 'readonly');
+            const store = transaction.objectStore(currentStoreName);
             const request = store.getAll();
 
             request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = () => {
+                let tasks = request.result || [];
+                console.log(`[DB] getAllTasks из ${currentStoreName}: ${tasks.length} задач`);
+                resolve(tasks);
+            };
         });
     }
 
@@ -72,11 +87,11 @@ const DB = (() => {
      * Синхронизация с облаком происходит в SyncEngine.queueOperation()
      */
     async function addTask(task) {
-        if (!db) return null;
+        if (!db || !task || !task.id) return null;
 
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
+            const transaction = db.transaction([currentStoreName], 'readwrite');
+            const store = transaction.objectStore(currentStoreName);
             const request = store.put(task);
 
             request.onerror = () => reject(request.error);
@@ -91,8 +106,8 @@ const DB = (() => {
         if (!db) return;
 
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
+            const transaction = db.transaction([currentStoreName], 'readwrite');
+            const store = transaction.objectStore(currentStoreName);
             const request = store.delete(taskId);
 
             request.onerror = () => reject(request.error);
@@ -107,8 +122,8 @@ const DB = (() => {
         if (!db) return;
 
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
+            const transaction = db.transaction([currentStoreName], 'readwrite');
+            const store = transaction.objectStore(currentStoreName);
             const request = store.clear();
 
             request.onerror = () => reject(request.error);
@@ -125,10 +140,13 @@ const DB = (() => {
      */
     async function saveTask(task) {
         await addTask(task);
-        
-        // Очередь для синхронизации с облаком
+        // Очередь для синхронизации с облаком (неблокирующая операция)
         if (FIREBASE_ENABLED) {
-            await SyncEngine.queueOperation('save', task.id, task);
+            try {
+                await SyncEngine.queueOperation('save', task.id, task);
+            } catch (error) {
+                console.warn('Ошибка при добавлении в очередь синхронизации:', error);
+            }
         }
 
         return task;
@@ -157,11 +175,32 @@ const DB = (() => {
     async function init() {
         try {
             await initIndexedDB();
-            console.log('🗄️  БД готова');
         } catch (error) {
             console.error('❌ Ошибка инициализации БД:', error);
             throw error;
         }
+    }
+
+    /**
+     * Изменить текущее хранилище БЕЗ перезагрузки
+     * Используется при переключении между storage1 и storage2
+     * @param {string} storageName - 'storage1' или 'storage2'
+     */
+    function setCurrentStorage(storageName) {
+        if (storageName !== 'storage1' && storageName !== 'storage2') {
+            console.error('❌ Неверное имя хранилища:', storageName);
+            return false;
+        }
+        
+        currentStoreName = `tasks_${storageName}`;
+        return true;
+    }
+
+    /**
+     * Получить текущее имя хранилища
+     */
+    function getCurrentStorage() {
+        return currentStoreName;
     }
 
     // Публичное API
@@ -170,8 +209,9 @@ const DB = (() => {
         getAllTasks,
         addTask,
         deleteTask,
-        clearStore,
         saveTask,
-        removeTask
+        removeTask,
+        setCurrentStorage,
+        getCurrentStorage
     };
 })();

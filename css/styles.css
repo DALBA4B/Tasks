@@ -133,12 +133,6 @@ body {
     align-items: start;
 }
 
-.sidebar {
-    display: none;
-    position: sticky;
-    top: 20px;
-}
-
 /* ============= ADD TASK CARD ============= */
 .add-task-card {
     background: white;
@@ -199,31 +193,6 @@ textarea {
 }
 
 /* ============= BUTTONS ============= */
-.btn-primary {
-    width: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    padding: 14px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-}
-
 .btn-work { background: #3b82f6; color: white; }
 .btn-complete { background: #10b981; color: white; }
 .btn-edit { background: #f59e0b; color: white; }
@@ -244,6 +213,7 @@ textarea {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
+    white-space: nowrap;
 }
 
 .btn-work:hover,
@@ -255,11 +225,12 @@ textarea {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
+/* Кнопки модалей форм */
 .btn-save {
-    flex: 1;
-    background: #10b981;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 12px;
+    flex: 1;
+    padding: 12px 20px;
     border: none;
     border-radius: 8px;
     font-size: 14px;
@@ -269,8 +240,139 @@ textarea {
 }
 
 .btn-save:hover {
-    background: #059669;
     transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-cancel {
+    background: #e5e7eb;
+    color: #1f2937;
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-cancel:hover {
+    background: #d1d5db;
+    transform: translateY(-2px);
+}
+
+.btn-settings {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-settings:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateY(-2px);
+}
+
+.storage-selection-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.btn-storage {
+    background: white;
+    border: 2px solid #e5e7eb;
+    padding: 20px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.btn-storage:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+}
+
+.btn-storage:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-storage.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+}
+
+/* ============= STORAGE TOGGLE SWITCH ============= */
+.storage-toggle-wrapper {
+    position: relative;
+    width: 60px;
+    height: 28px;
+}
+
+.storage-toggle-checkbox {
+    display: none;
+}
+
+.storage-toggle-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #e5e7eb;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.3s;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+
+.storage-toggle-checkbox:checked + .storage-toggle-label {
+    background: #4CAF50;
+}
+
+.toggle-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 14px;
+}
+
+.toggle-thumb {
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 12px;
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    transition: left 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.storage-toggle-checkbox:checked + .storage-toggle-label .toggle-thumb {
+    left: 34px;
 }
 
 .btn-cancel {
@@ -301,6 +403,11 @@ textarea {
     to { opacity: 1; transform: translateX(0); }
 }
 
+/* ⚠️ ВАЖНО: НЕ УДАЛЯТЬ И НЕ МЕНЯТЬ - Это отвечает за 3-столбцовый layout задач
+   column-count: 3 - создаёт 3 колонки на большом экране
+   column-gap: 30px - расстояние между колонками
+   column-fill: balance - равномерно распределяет задачи по колонкам
+   Удаление приведёт к отображению задач в 1 длинную строку! */
 .tasks-grid {
     column-count: 3;
     column-gap: 30px;
@@ -551,10 +658,6 @@ textarea {
 @media (max-width: 1200px) {
     .main-content {
         grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-        position: static;
     }
 
     .tasks-grid {

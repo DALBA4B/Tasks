@@ -15,15 +15,65 @@
                 <button class="nav-tab" data-tab="archive">📦 Архив</button>
                 <button class="btn-add-task" id="btnAddTask" title="Создать задачу">+</button>
             </div>
-            <div class="sync-status offline" id="syncStatus">
-                <div class="sync-dot"></div>
-                <span id="syncText">Загрузка...</span>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div class="sync-status offline" id="syncStatus">
+                    <div class="sync-dot"></div>
+                    <span id="syncText">Загрузка...</span>
+                </div>
+                <button class="btn-settings" id="btnSettings" title="Настройки">⚙️</button>
             </div>
         </div>
 
         <div class="main-content">
             <div class="tasks-section">
                 <div class="tasks-grid" id="tasksContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Storage Selection Modal (выбирается при входе) -->
+    <div class="modal" id="storageSelectionModal">
+        <div class="modal-content modal-confirm" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3>Выберите хранилище</h3>
+            </div>
+            <p class="confirm-message" style="margin-bottom: 20px;">
+                Каждое хранилище содержит свои задачи, полностью изолированы друг от друга.
+            </p>
+            <div class="storage-selection-buttons">
+                <button class="btn-storage" id="btnStorage1" data-storage="storage1">
+                    <span style="font-size: 24px; margin-bottom: 8px; display: block;">📁</span>
+                    <strong>Хранилище 1</strong>
+                </button>
+                <button class="btn-storage" id="btnStorage2" data-storage="storage2">
+                    <span style="font-size: 24px; margin-bottom: 8px; display: block;">📁</span>
+                    <strong>Хранилище 2</strong>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Настройки</h3>
+                <button class="modal-close" id="settingsModalClose">&times;</button>
+            </div>
+            <div style="padding: 15px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                    <div>
+                        <p style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Хранилища:</p>
+                        <p style="font-weight: 600; color: #1f2937;" id="currentStateDisplay">Разделено</p>
+                    </div>
+                    <div class="storage-toggle-wrapper">
+                        <input type="checkbox" id="storageToggle" class="storage-toggle-checkbox">
+                        <label for="storageToggle" class="storage-toggle-label">
+                            <span class="toggle-track"></span>
+                            <span class="toggle-thumb"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -159,6 +209,7 @@
 
     <!-- Application Scripts (порядок важен!) -->
     <script src="js/config.js"></script>
+    <script src="js/storage-manager.js"></script>
     <script src="js/autosize.js"></script>
     
     <!-- Data Layer (IndexedDB + Sync) -->
@@ -175,5 +226,4 @@
     <script src="js/app.js"></script>
 </body>
 </html>
-<!-- test -->
 
