@@ -76,7 +76,6 @@ const DB = (() => {
             request.onerror = () => reject(request.error);
             request.onsuccess = () => {
                 let tasks = request.result || [];
-                console.log(`[DB] getAllTasks из ${currentStoreName}: ${tasks.length} задач`);
                 resolve(tasks);
             };
         });

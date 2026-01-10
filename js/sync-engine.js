@@ -135,7 +135,6 @@ const SyncEngine = (() => {
         firebaseDb.ref(firebasePath).on('value', async (snapshot) => {
             const cloudTasks = snapshot.val() || {};
             const tasks = Object.values(cloudTasks);
-            console.log(`[CloudListener] ${firebasePath}: ${tasks.length} задач`);
 
             // Объединить облачные данные с локальными через LWW
             await mergeCloudTasks(tasks, StorageManager.getCurrent());
@@ -143,7 +142,7 @@ const SyncEngine = (() => {
             // Уведомить UI о синхронизации
             emitEvent(EVENTS.TASKS_SYNCED, { tasks });
         }, (error) => {
-            console.error('❌ Ошибка слушателя облака:', error);
+            console.error('Ошибка слушателя облака:', error);
             emitEvent(EVENTS.SYNC_ERROR, { message: error.message });
         });
     }
@@ -199,7 +198,6 @@ const SyncEngine = (() => {
 
         // Удалить локальные задачи которые удалены на облаке
         // ВАЖНО: не удалять задачи которые еще в очереди синхронизации
-        let deletedCount = 0;
         for (const localTask of localTasks) {
             if (!cloudTaskIds.has(localTask.id)) {
                 // Пропустить если задача еще в очереди синхронизации
@@ -209,17 +207,9 @@ const SyncEngine = (() => {
                 
                 if (!isInQueue) {
                     await DB.deleteTask(localTask.id);
-                    deletedCount++;
                 }
             }
         }
-        
-        if (deletedCount > 0) {
-            // Удалены локальные задачи
-        }
-        
-        // Проверка: все ли локальные задачи теперь синхронны с облаком
-        const finalLocalTasks = await DB.getAllTasks();
     }
 
     /**
@@ -263,7 +253,6 @@ const SyncEngine = (() => {
     async function processQueue() {
         // Проверить готовность
         if (!isOnline) {
-            return;
             return;
         }
 

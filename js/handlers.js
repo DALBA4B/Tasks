@@ -63,20 +63,23 @@ const Handlers = (() => {
         e.preventDefault();
 
         try {
+            console.log('📝 CREATE: добавление новой карточки');
             const title = document.getElementById('createTitle').value;
             const description = document.getElementById('createDescription').value;
             const deadline = document.getElementById('createDeadline').value;
             const priority = document.getElementById('createPriority').value;
 
             const newTask = Task.create(title, description, deadline, priority);
-            console.log('[CREATE] ID:', newTask.id, 'Title:', newTask.title);
-            
             await DB.saveTask(newTask);
-            console.log('[CREATE] Сохранена в DB');
-
             UI.closeCreateModal();
-            await loadAndRenderTasks();
-            console.log('[CREATE] Отрендерена');
+            
+            // Добавить новую карточку в конец списка (для активной вкладки)
+            if (UI.getCurrentTab() === 'active') {
+                const allTasks = UI.getAllTasks();
+                allTasks.push(newTask);
+                UI.setAllTasks(allTasks);
+                UI.renderTasks();
+            }
         } catch (error) {
             console.error('Ошибка создания задачи:', error);
             window.showAppNotification('❌ Ошибка: не удалось создать задачу', 'error');
@@ -97,6 +100,7 @@ const Handlers = (() => {
         e.preventDefault();
 
         try {
+            console.log('✏️ EDIT: обновление одной карточки');
             const taskId = UI.getEditingTaskId();
             if (!taskId) return;
 
@@ -123,7 +127,7 @@ const Handlers = (() => {
             await DB.saveTask(task);
 
             UI.closeEditModal();
-            await loadAndRenderTasks();
+            UI.updateTaskCard(task.id);
         } catch (error) {
             console.error('Ошибка редактирования задачи:', error);
             window.showAppNotification('❌ Ошибка: не удалось отредактировать задачу', 'error');
@@ -134,31 +138,44 @@ const Handlers = (() => {
      * Инициализировать управление модальными окнами
      */
     function initModalControls() {
+        // Функция безопасного добавления слушателя с проверкой элемента
+        const safeAddListener = (elementId, event, callback) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.addEventListener(event, callback);
+            } else {
+                console.warn(`⚠️ Элемент #${elementId} не найден`);
+            }
+        };
+
         // Функция закрытия модального окна по клику на backdrop
         const attachBackdropListener = (modalId, closeCallback) => {
-            document.getElementById(modalId).addEventListener('click', (e) => {
-                if (e.target === document.getElementById(modalId)) {
-                    closeCallback();
-                }
-            });
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        closeCallback();
+                    }
+                });
+            }
         };
 
         // Edit modal
-        document.getElementById('modalClose').addEventListener('click', UI.closeEditModal);
-        document.getElementById('cancelEdit').addEventListener('click', UI.closeEditModal);
+        safeAddListener('modalClose', 'click', UI.closeEditModal);
+        safeAddListener('cancelEdit', 'click', UI.closeEditModal);
         attachBackdropListener('editModal', UI.closeEditModal);
 
         // Create modal
-        document.getElementById('createModalClose').addEventListener('click', UI.closeCreateModal);
-        document.getElementById('cancelCreate').addEventListener('click', UI.closeCreateModal);
+        safeAddListener('createModalClose', 'click', UI.closeCreateModal);
+        safeAddListener('cancelCreate', 'click', UI.closeCreateModal);
         attachBackdropListener('createModal', UI.closeCreateModal);
 
         // Confirm delete modal
-        document.getElementById('cancelDeleteBtn').addEventListener('click', UI.closeConfirmDeleteModal);
+        safeAddListener('cancelDeleteBtn', 'click', UI.closeConfirmDeleteModal);
         attachBackdropListener('confirmDeleteModal', UI.closeConfirmDeleteModal);
 
         // Confirm complete modal
-        document.getElementById('cancelCompleteBtn').addEventListener('click', UI.closeConfirmCompleteModal);
+        safeAddListener('cancelCompleteBtn', 'click', UI.closeConfirmCompleteModal);
         attachBackdropListener('confirmCompleteModal', UI.closeConfirmCompleteModal);
     }
 
@@ -186,23 +203,30 @@ const Handlers = (() => {
 
         switch (action) {
             case 'work':
+                console.log('🔧 ACTION: work - обновление одной карточки');
                 Task.startWork(task);
                 await DB.saveTask(task);
-                await loadAndRenderTasks();
+                UI.updateTaskCard(task.id);
                 break;
 
             case 'exit-work':
+                console.log('🔧 ACTION: exit-work - обновление одной карточки');
                 Task.exitWork(task);
                 await DB.saveTask(task);
-                await loadAndRenderTasks();
+                UI.updateTaskCard(task.id);
                 break;
 
             case 'complete':
+                console.log('🔧 ACTION: complete - полная перезагрузка (из-за архивирования)');
                 UI.openConfirmCompleteModal(async () => {
                     Task.complete(task);
                     await DB.saveTask(task);
-                    // Небольшая задержка для анимации
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Анимировать удаление карточки
+                    const cardElement = document.querySelector(`[data-task-id="${task.id}"]`);
+                    if (cardElement) {
+                        cardElement.classList.add('removing');
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
                     Task.archive(task);
                     await DB.saveTask(task);
                     await loadAndRenderTasks();
@@ -211,20 +235,30 @@ const Handlers = (() => {
                 break;
 
             case 'restore':
+                console.log('🔧 ACTION: restore - полная перезагрузка (смена вкладки)');
                 Task.restore(task);
                 await DB.saveTask(task);
+                // Полная перезагрузка т.к. нужно переключить вкладку
                 await loadAndRenderTasks();
                 break;
 
             case 'edit':
+                console.log('🔧 ACTION: edit - открытие модального окна');
                 UI.openEditModal(task);
                 break;
 
             case 'delete':
+                console.log('🔧 ACTION: delete - удаление с анимацией');
                 UI.openConfirmDeleteModal(async () => {
                     try {
                         await DB.removeTask(task.id);
-                        await loadAndRenderTasks();
+                        // Удалить карточку из DOM
+                        const cardElement = document.querySelector(`[data-task-id="${task.id}"]`);
+                        if (cardElement) {
+                            cardElement.classList.add('removing');
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                            cardElement.remove();
+                        }
                         UI.closeConfirmDeleteModal();
                     } catch (error) {
                         console.error('Ошибка при удалении задачи:', error);

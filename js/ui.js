@@ -62,13 +62,32 @@ const UI = (() => {
     }
 
     /**
-     * Отсортировать задачи (возвращённые из архива внизу)
+     * Отсортировать задачи по приоритету и статусу
+     * Порядок:
+     * 1. Высокий приоритет (high)
+     * 2. Средний приоритет (medium)
+     * 3. Низкий приоритет (low)
+     * 4. Без приоритета
+     * 5. Возвращённые из архива в конце
      */
     function sortTasks(tasks) {
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        
         return tasks.sort((a, b) => {
+            // Сначала возвращённые из архива в конец
             if (a.returned_from_archive && !b.returned_from_archive) return 1;
             if (!a.returned_from_archive && b.returned_from_archive) return -1;
-            return 0;
+            
+            // Потом по приоритету
+            const priorityA = priorityOrder[a.priority] ?? 3; // 3 = без приоритета
+            const priorityB = priorityOrder[b.priority] ?? 3;
+            
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+            
+            // Если приоритет одинаковый — по времени создания (новые первыми)
+            return new Date(b.created_at) - new Date(a.created_at);
         });
     }
 
@@ -123,28 +142,16 @@ const UI = (() => {
                 </div>
                 ${task.description ? `<div class="task-description">${escapeHtml(task.description).replace(/\n/g, '<br>')}</div>` : ''}
                 <div class="task-meta">
-                    ${task.deadline ? `<div class="task-meta-item">📅 ${Task.formatDate(task.deadline)}</div>` : ''}
-                    <div class="task-meta-item">➕ ${Task.formatDate(task.created_at)}</div>
-                    ${task.in_work_at ? `<div class="task-meta-item">🔧 ${Task.formatDate(task.in_work_at)}</div>` : ''}
-                    ${task.completed_at ? `<div class="task-meta-item">✅ ${Task.formatDate(task.completed_at)}</div>` : ''}
+                    ${task.deadline ? `<div class="task-meta-item" data-meta-type="deadline">📅 ${Task.formatDate(task.deadline)}</div>` : ''}
+                    <div class="task-meta-item" data-meta-type="created">➕ ${Task.formatDate(task.created_at)}</div>
+                    ${task.in_work_at ? `<div class="task-meta-item" data-meta-type="in-work">🔧 ${Task.formatDate(task.in_work_at)}</div>` : ''}
+                    ${task.completed_at ? `<div class="task-meta-item" data-meta-type="completed">✅ ${Task.formatDate(task.completed_at)}</div>` : ''}
                 </div>
                 <div class="task-actions">
                     ${actions}
                 </div>
             </div>
         `;
-    }
-
-    /**
-     * Заполнить описание задачи с сохранением переносов строк
-     */
-    function fillTaskDescription(cardElement, description) {
-        if (!description) return;
-        
-        const descElement = cardElement.querySelector('.task-description');
-        if (descElement) {
-            descElement.textContent = description;
-        }
     }
 
     /**
@@ -158,8 +165,6 @@ const UI = (() => {
         }
 
         const filteredTasks = getFilteredTasks();
-        console.log(`[RENDER] Всего в UI: ${allTasks.length}, Фильтр "${currentTab}": ${filteredTasks.length}`);
-        
         const sortedTasks = sortTasks([...filteredTasks]);
 
         if (sortedTasks.length === 0) {
@@ -169,10 +174,92 @@ const UI = (() => {
 
         const newHTML = sortedTasks.map(task => renderTaskCard(task)).join('');
         container.innerHTML = newHTML;
-        console.log(`[RENDER] Отрендерено задач: ${sortedTasks.length}`);
         
         // Инициализировать autosize для новых textarea
         setTimeout(() => TextareaAutosize.init(), 0);
+    }
+
+    /**
+     * Обновить одну карточку задачи в DOM (без перерисовки всех)
+     */
+    function updateTaskCard(taskId) {
+        const task = allTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const cardElement = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (!cardElement) {
+            // Если карточка не найдена (например, может быть скрыта фильтром), перерисовать всё
+            renderTasks();
+            return;
+        }
+
+        console.log('📌 updateTaskCard: обновление ТОЛЬКО блока .task-meta');
+        
+        // Обновить только блок с метаинформацией (датами)
+        const metaBlock = cardElement.querySelector('.task-meta');
+        if (metaBlock) {
+            // НЕ перерендерим дату создания, а только добавляем новую дату входа в работу
+            // Проверяем есть ли уже дата входа в работу
+            const existingInWorkItem = metaBlock.querySelector('[data-meta-type="in-work"]');
+            
+            let needsAnimation = false;
+            
+            if (task.in_work_at && !existingInWorkItem) {
+                // Добавляем новый элемент с датой входа в работу после даты создания
+                const createdAtItem = metaBlock.querySelector('[data-meta-type="created"]');
+                if (createdAtItem) {
+                    const newItem = document.createElement('div');
+                    newItem.className = 'task-meta-item';
+                    newItem.setAttribute('data-meta-type', 'in-work');
+                    newItem.innerHTML = `🔧 ${Task.formatDate(task.in_work_at)}`;
+                    createdAtItem.insertAdjacentElement('afterend', newItem);
+                }
+            } else if (task.in_work_at && existingInWorkItem) {
+                // Обновляем существующую дату входа в работу
+                existingInWorkItem.innerHTML = `🔧 ${Task.formatDate(task.in_work_at)}`;
+            } else if (!task.in_work_at && existingInWorkItem) {
+                // Удаляем дату входа в работу если её больше нет
+                existingInWorkItem.remove();
+            }
+        }
+        
+        // Обновить кнопки (статус может измениться)
+        const actionsBlock = cardElement.querySelector('.task-actions');
+        if (actionsBlock) {
+            let actions = '';
+            if (task.status === 'archived') {
+                actions = `
+                    <button class="btn-restore" data-id="${task.id}" data-action="restore">Вернуть</button>
+                    <button class="btn-edit" data-id="${task.id}" data-action="edit">Изменить</button>
+                    <button class="btn-delete" data-id="${task.id}" data-action="delete">Удалить</button>
+                `;
+            } else {
+                let statusButtons = '';
+                // Если была в работе (in_work_at установлена) — показать кнопку выхода
+                if (task.in_work_at) {
+                    statusButtons += `<button class="btn-work" data-id="${task.id}" data-action="exit-work">Из работы</button>`;
+                } else if (task.status !== 'completed') {
+                    // Иначе если не завершена — показать кнопку входа в работу
+                    statusButtons += `<button class="btn-work" data-id="${task.id}" data-action="work">В работу</button>`;
+                }
+                if (task.status !== 'completed') {
+                    statusButtons += `<button class="btn-complete" data-id="${task.id}" data-action="complete">Готово</button>`;
+                }
+                actions = `
+                    ${statusButtons}
+                    <button class="btn-edit" data-id="${task.id}" data-action="edit">Изменить</button>
+                    <button class="btn-delete" data-id="${task.id}" data-action="delete">Удалить</button>
+                `;
+            }
+            actionsBlock.innerHTML = actions;
+        }
+        
+        // Обновить класс in-work
+        if (task.in_work_at && !cardElement.classList.contains('in-work')) {
+            cardElement.classList.add('in-work');
+        } else if (!task.in_work_at && cardElement.classList.contains('in-work')) {
+            cardElement.classList.remove('in-work');
+        }
     }
 
     /**
@@ -195,6 +282,8 @@ const UI = (() => {
         // Инициализировать автоматическое расширение textarea в модальном окне
         setTimeout(() => {
             const editDescriptionTextarea = document.getElementById('editDescription');
+            // Сбросить высоту перед инициализацией
+            editDescriptionTextarea.style.height = 'auto';
             if (editDescriptionTextarea && TextareaAutosize) {
                 TextareaAutosize.attachAutosize(editDescriptionTextarea);
             }
@@ -207,6 +296,10 @@ const UI = (() => {
     function closeEditModal() {
         document.getElementById('editModal').classList.remove('active');
         editingTaskId = null;
+        // Очистить обработанные textarea чтобы избежать утечки памяти
+        if (TextareaAutosize && TextareaAutosize.clearProcessedTextareas) {
+            TextareaAutosize.clearProcessedTextareas();
+        }
     }
 
     /**
@@ -223,6 +316,8 @@ const UI = (() => {
         // Инициализировать автоматическое расширение textarea
         setTimeout(() => {
             const createDescriptionTextarea = document.getElementById('createDescription');
+            // Сбросить высоту перед инициализацией
+            createDescriptionTextarea.style.height = 'auto';
             if (createDescriptionTextarea && TextareaAutosize) {
                 TextareaAutosize.attachAutosize(createDescriptionTextarea);
             }
@@ -234,6 +329,10 @@ const UI = (() => {
      */
     function closeCreateModal() {
         document.getElementById('createModal').classList.remove('active');
+        // Очистить обработанные textarea чтобы избежать утечки памяти
+        if (TextareaAutosize && TextareaAutosize.clearProcessedTextareas) {
+            TextareaAutosize.clearProcessedTextareas();
+        }
     }
 
     /**
@@ -277,6 +376,7 @@ const UI = (() => {
     // Публичное API
     return {
         setCurrentTab,
+        getCurrentTab,
         setEditingTaskId,
         getEditingTaskId,
         setAllTasks,
@@ -284,6 +384,7 @@ const UI = (() => {
         getFilteredTasks,
         sortTasks,
         renderTasks,
+        updateTaskCard,
         openEditModal,
         closeEditModal,
         openCreateModal,

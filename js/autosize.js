@@ -54,6 +54,13 @@ const TextareaAutosize = (() => {
     }
 
     /**
+     * Очистить набор обработанных textarea (предотвращает утечку памяти при многократном открытии модалей)
+     */
+    function clearProcessedTextareas() {
+        processedTextareas.clear();
+    }
+
+    /**
      * Наблюдать за добавлением новых textarea (при открытии модала)
      */
     function observeNewTextareas() {
@@ -81,6 +88,7 @@ const TextareaAutosize = (() => {
     // Публичное API
     return {
         init,
-        attachAutosize
+        attachAutosize,
+        clearProcessedTextareas
     };
 })();

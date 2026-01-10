@@ -225,6 +225,15 @@ textarea {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
+.btn-work:active,
+.btn-complete:active,
+.btn-edit:active,
+.btn-delete:active,
+.btn-restore:active {
+    filter: brightness(0.9);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+}
+
 /* Кнопки модалей форм */
 .btn-save {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -375,24 +384,6 @@ textarea {
     left: 34px;
 }
 
-.btn-cancel {
-    flex: 1;
-    background: #6b7280;
-    color: white;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-cancel:hover {
-    background: #4b5563;
-    transform: translateY(-2px);
-}
-
 /* ============= TASKS SECTION ============= */
 .tasks-section {
     animation: slideInRight 0.6s ease-out;
@@ -403,15 +394,13 @@ textarea {
     to { opacity: 1; transform: translateX(0); }
 }
 
-/* ⚠️ ВАЖНО: НЕ УДАЛЯТЬ И НЕ МЕНЯТЬ - Это отвечает за 3-столбцовый layout задач
-   column-count: 3 - создаёт 3 колонки на большом экране
+/* ⚠️ МАСОНРИЯ LAYOUT - как в Google Keep
+   column-count: 3 - 3 вертикальные колонки
    column-gap: 30px - расстояние между колонками
-   column-fill: balance - равномерно распределяет задачи по колонкам
-   Удаление приведёт к отображению задач в 1 длинную строку! */
+   Карточки распределяются вертикально в каждой колонке, разные размеры */
 .tasks-grid {
     column-count: 3;
     column-gap: 30px;
-    column-fill: balance;
 }
 
 /* ============= TASK CARD ============= */
@@ -429,6 +418,7 @@ textarea {
     page-break-inside: avoid;
     margin-bottom: 30px;
 }
+
 
 @keyframes scaleIn {
     from { opacity: 0; transform: scale(0.9); }
@@ -453,6 +443,65 @@ textarea {
 .task-card.in-work {
     border: 3px solid #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Анимация обновления карточки */
+.task-card.pulse {
+    animation: cardPulse 0.6s ease-out;
+}
+
+@keyframes cardPulse {
+    0% { 
+        transform: scale(1);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    50% { 
+        transform: scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+    100% { 
+        transform: scale(1);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+}
+
+/* Анимация удаления карточки */
+.task-card.removing {
+    animation: cardRemove 0.3s ease-out forwards;
+}
+
+@keyframes cardRemove {
+    0% { 
+        opacity: 1;
+        transform: scale(1) rotateZ(0deg);
+    }
+    100% { 
+        opacity: 0;
+        transform: scale(0.8) rotateZ(-5deg);
+    }
+}
+
+/* Анимация появления элемента даты в блоке */
+@keyframes slideInItemSmooth {
+    0% {
+        opacity: 0;
+        transform: translateX(-20px);
+        max-height: 0;
+    }
+    30% {
+        opacity: 0.3;
+        transform: translateX(-15px);
+    }
+    70% {
+        opacity: 0.95;
+        transform: translateX(-2px);
+        max-height: 24px;
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+        max-height: 24px;
+    }
 }
 
 .task-header {
@@ -508,12 +557,58 @@ textarea {
     padding: 12px;
     background: #f9fafb;
     border-radius: 8px;
+    overflow: hidden;
+    will-change: max-width, opacity;
+}
+
+/* Анимация расширения при добавлении новой даты */
+.task-meta.meta-expand {
+    animation: metaExpandWidth 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes metaExpandWidth {
+    0% {
+        max-width: 0;
+        padding-left: 0;
+        padding-right: 0;
+        opacity: 0;
+    }
+    50% {
+        max-width: 100%;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    100% {
+        max-width: 100%;
+        padding-left: 12px;
+        padding-right: 12px;
+        opacity: 1;
+    }
 }
 
 .task-meta-item {
     display: flex;
     align-items: center;
     gap: 6px;
+    opacity: 0;
+    animation: slideInItemSmooth 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: opacity, transform;
+}
+
+.task-meta.meta-expand .task-meta-item:nth-child(1) {
+    animation-delay: 0.3s;
+}
+
+.task-meta.meta-expand .task-meta-item:nth-child(2) {
+    animation-delay: 0.8s;
+}
+
+.task-meta.meta-expand .task-meta-item:nth-child(3) {
+    animation-delay: 1.3s;
+}
+
+.task-meta.meta-expand .task-meta-item:nth-child(4) {
+    animation-delay: 1.8s;
 }
 
 .task-actions {
