@@ -97,3 +97,10 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// Оптимизация для mobile - убираем задержку 300ms при touch
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
