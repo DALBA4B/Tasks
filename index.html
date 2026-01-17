@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Приложение для управления задачами с синхронизацией">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Задачи">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%233b82f6' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dy='.35em' font-family='Arial,sans-serif' font-weight='bold'>✓</text></svg>">
     <title>Менеджер задач</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/colors.css">
@@ -18,7 +25,6 @@
             <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="sync-status offline" id="syncStatus">
                     <div class="sync-dot"></div>
-                    <span id="syncText">Загрузка...</span>
                 </div>
                 <button class="btn-settings" id="btnSettings" title="Настройки">⚙️</button>
             </div>
@@ -221,6 +227,24 @@
     <script src="js/task.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/handlers.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(registration => {
+                    console.log('[App] Service Worker зарегистрирован:', registration);
+                    
+                    // Проверка обновлений каждые 6 часов
+                    setInterval(() => {
+                        registration.update();
+                    }, 6 * 60 * 60 * 1000);
+                })
+                .catch(error => {
+                    console.error('[App] Ошибка регистрации Service Worker:', error);
+                });
+        }
+    </script>
     
     <!-- Application -->
     <script src="js/app.js"></script>

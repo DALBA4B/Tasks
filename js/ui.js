@@ -155,6 +155,37 @@ const UI = (() => {
     }
 
     /**
+     * Переопорядочить задачи для масонрии (column-count: 3)
+     * Масонрия распределяет вертикально по колонкам,
+     * поэтому нужно переделать HTML порядок чтобы визуально получилась 3x3 сетка
+     * 
+     * Пример:
+     * Входящий: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+     * Выходящий: [1, 4, 7, 2, 5, 8, 3, 6, 9]
+     * 
+     * Масонрия затем распределит:
+     * Колонка 1: 1, 4, 7
+     * Колонка 2: 2, 5, 8
+     * Колонка 3: 3, 6, 9
+     * 
+     * Визуально: 1 2 3 / 4 5 6 / 7 8 9 ✅
+     */
+    function reorderTasksForMasonry(tasks) {
+        const cols = 3;
+        const reordered = [];
+        
+        // Для каждой колонки
+        for (let col = 0; col < cols; col++) {
+            // Для каждой строки в этой колонке
+            for (let row = 0; row * cols + col < tasks.length; row++) {
+                reordered.push(tasks[row * cols + col]);
+            }
+        }
+        
+        return reordered;
+    }
+
+    /**
      * Отрендерить все задачи
      */
     function renderTasks() {
@@ -172,7 +203,10 @@ const UI = (() => {
             return;
         }
 
-        const newHTML = sortedTasks.map(task => renderTaskCard(task)).join('');
+        // Переопорядочить для правильного отображения в масонрии
+        const masonryOrderedTasks = reorderTasksForMasonry(sortedTasks);
+
+        const newHTML = masonryOrderedTasks.map(task => renderTaskCard(task)).join('');
         container.innerHTML = newHTML;
         
         // Инициализировать autosize для новых textarea

@@ -258,24 +258,17 @@ const App = (() => {
      */
     function updateSyncStatus(online, syncing = false, queueCount = 0) {
         const statusEl = document.getElementById('syncStatus');
-        const statusText = document.getElementById('syncText');
 
         if (!statusEl) return;
 
         if (!online) {
             statusEl.className = 'sync-status offline';
-            statusText.textContent = 'Офлайн режим';
         } else if (syncing) {
             statusEl.className = 'sync-status syncing';
-            statusText.textContent = queueCount > 0 ? 
-                `⟳ Синхронизация (${queueCount})` : 
-                '⟳ Синхронизация...';
         } else if (queueCount > 0) {
             statusEl.className = 'sync-status syncing';
-            statusText.textContent = `⟳ Синхронизация (${queueCount})`;
         } else {
             statusEl.className = 'sync-status synced';
-            statusText.textContent = '✓ Синхронизировано';
         }
     }
 

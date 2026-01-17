@@ -73,13 +73,9 @@ const Handlers = (() => {
             await DB.saveTask(newTask);
             UI.closeCreateModal();
             
-            // Добавить новую карточку в конец списка (для активной вкладки)
-            if (UI.getCurrentTab() === 'active') {
-                const allTasks = UI.getAllTasks();
-                allTasks.push(newTask);
-                UI.setAllTasks(allTasks);
-                UI.renderTasks();
-            }
+            // Перезагрузить список из БД (а не использовать кэш в памяти)
+            // Это гарантирует что удаленные задачи не появятся
+            await loadAndRenderTasks();
         } catch (error) {
             console.error('Ошибка создания задачи:', error);
             window.showAppNotification('❌ Ошибка: не удалось создать задачу', 'error');
