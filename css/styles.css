@@ -3,16 +3,15 @@
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-    outline: none;
-    -webkit-appearance: none;
+    touch-action: manipulation;
 }
 
 *:focus {
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent !important;
+    outline: none;
+}
+
+button, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -20,6 +19,7 @@ body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     padding: 20px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .container {
